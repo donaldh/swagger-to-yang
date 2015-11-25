@@ -3,34 +3,35 @@
 use v6;
 use JSON::Tiny;
 
-sub MAIN($json-file, :$prefix, :$namespace, :$org, :$date, :$contact) {
+sub MAIN($json-file, Str :$module-prefix, Str :$namespace, Str :$org, Str :$date, Str :$contact, Str :$entity-prefix, Bool :$preserve-names = False) {
     my $json = slurp $json-file;
     my %swagger = from-json($json);
 
     my $title = %swagger<info><title> // $json-file;
-    my $module-name = $title.lc.trans(' .' => '-');
-    my $module-prefix = $prefix // $module-name;
-    my $description = %swagger<info><description> // "TODO";
-    my $organization = $org // "TODO";
-    my $contact-info = $contact // "TODO";
-    my $module-namespace = $namespace // "urn:{$module-name}";
-    my $revision-date = $date // Date.today;
+    my $y-module-name = $title.lc.trans(' .' => '-');
+    my $y-module-prefix = $module-prefix // $y-module-name;
+    my $y-description = %swagger<info><description> // "TODO";
+    my $y-organization = $org // "TODO";
+    my $y-contact-info = $contact // "TODO";
+    my $y-module-namespace = $namespace // "urn:{$y-module-name}";
+    my $y-revision-date = $date // Date.today;
+    my $y-entity-prefix = $entity-prefix ?? $entity-prefix ~ '-' !! '';
 
     #
     # Write the module header
     #
     say qq:to/EOF/;
-    module {$module-name} \{
-      namespace "{$module-namespace}";
-      prefix {$module-prefix};
+    module {$y-module-name} \{
+      namespace "{$y-module-namespace}";
+      prefix {$y-module-prefix};
 
-      organization "{$organization}";
+      organization "{$y-organization}";
       contact
-        "{$contact-info}";
+        "{$y-contact-info}";
       description
-        "{$description}";
+        "{$y-description}";
 
-      revision {$revision-date} \{
+      revision {$y-revision-date} \{
         description
           "Generated from {$json-file}";
       \}
@@ -55,7 +56,7 @@ sub MAIN($json-file, :$prefix, :$namespace, :$org, :$date, :$contact) {
 			my $descr = %properties<description>;
 			my $key = %properties<parameters>[0]<name>;
 
-                        my Bool $emitKey = ! %swagger<definitions>{$type}<properties>{$key};
+            my Bool $emitKey = ! has-key($type, $key);
 
 			container($type ~ '-list', $descr, $type, $key, $emitKey);
                     }
@@ -70,7 +71,7 @@ sub MAIN($json-file, :$prefix, :$namespace, :$org, :$date, :$contact) {
     # Process definitions to identify group definitions.
     #
     for %swagger<definitions>.keys -> $key {
-        say "{$indent}grouping {$key} \{";
+        say "{$indent}grouping {yangify-name($key)} \{";
         my $properties = %swagger<definitions>{$key}<properties>;
         object($key, $properties, $indent) if $properties;
         say "{$indent}}";
@@ -83,13 +84,24 @@ sub MAIN($json-file, :$prefix, :$namespace, :$org, :$date, :$contact) {
 
     # Done
 
+    sub yangify-name($name) {
+        my $ret = $y-entity-prefix ~ $name;
+        $ret = $ret.lc.trans('_' => '-') unless $preserve-names;
+        $ret;
+    }
+
+    sub has-key($type, $key) {
+        ?%swagger<definitions>{$type}<properties>{$key}
+    }
+
     sub container($name, $descr, $type, $key, $emitKey) {
+        my $y-type = yangify-name($type);
         say qq:to/EOF/;
-          container $name \{
+          container {yangify-name($name)} \{
             description
 	      "$descr";
-            list $type \{
-              uses $type;
+            list $y-type \{
+              uses $y-type;
               key "$key";
         EOF
         if $emitKey {
@@ -110,10 +122,11 @@ sub MAIN($json-file, :$prefix, :$namespace, :$org, :$date, :$contact) {
 
         for %properties.keys -> $key {
             my %value = %properties{$key};
-
             given %value<type> {
                 when 'object' {
-                    say "{$indent}container {$key} \{";
+                    my $ref = %value<$ref>;
+                    say "{$indent}container {yangify-name($key)} \{";
+                    say "{$indent}  uses {$ref.subst(/^.*\//, '')};" if $ref;
                     try object($key, %value<properties>, $indent);
                     say "{$indent}\}";
                 }
@@ -134,17 +147,20 @@ sub MAIN($json-file, :$prefix, :$namespace, :$org, :$date, :$contact) {
     }
 
     #
-    # TODO - need to search for key to use
+    # TODO - Is there a way to search for key to use, or maybe a heuristic?
     #
     sub arr($name, %value, $indent) {
         my $ref = %value<items><$ref>;
         my $uses = $ref.split('/').Array.pop;
-        say "{$indent}list {$name} \{";
-        say "{$indent}  uses {$uses};";
-        say "{$indent}  key \"id\";";
-        say "{$indent}  leaf id \{";
-        say "{$indent}    type string;";
-        say "{$indent}  \}";
+        my $key = 'id';                                 # hard-coded key;
+        say "{$indent}list {yangify-name($name)} \{";
+        say "{$indent}  uses {yangify-name($uses)};";
+        say "{$indent}  key \"{$key}\";";
+        {
+            say "{$indent}  leaf {$key} \{";
+            say "{$indent}    type string;";
+            say "{$indent}  \}";
+        } unless has-key($uses, $key);
         say "{$indent}\}";
     }
 
