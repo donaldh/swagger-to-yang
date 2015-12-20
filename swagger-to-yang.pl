@@ -3,7 +3,17 @@
 use v6;
 use JSON::Tiny;
 
-sub MAIN($json-file, Str :$module-prefix, Str :$namespace, Str :$org, Str :$date, Str :$contact, Str :$entity-prefix, Bool :$preserve-names = False) {
+#| Translate a JSON Swagger specification into a YANG schema
+sub MAIN(
+    Str $json-file,                #= The input JSON Swagger specification
+    Str :$module-prefix,           #= Set the YANG prefix - defaults to the module-name
+    Str :$namespace,               #= Set the YANG namespace - defaults to urn:module-name
+    Str :$org,                     #= Set the YANG organization - defaults to TODO
+    Str :$date,                    #= Set the YANG revision date - defaults to today in YYYY-MM-DD format
+    Str :$contact,                 #= Set the YANG contact information - defaults to TODO
+    Str :$entity-prefix,           #= Provide a prefix for all YANG entity names - can help to avoid name clashes
+    Bool :$preserve-names = False  #= Use the Swagger definition names unchanged - default is to convert to kebab-case
+    ) {
     my $json = slurp $json-file;
     my %swagger = from-json($json);
 
@@ -56,7 +66,7 @@ sub MAIN($json-file, Str :$module-prefix, Str :$namespace, Str :$org, Str :$date
 			my $descr = %properties<description>;
 			my $key = %properties<parameters>[0]<name>;
 
-            my Bool $emitKey = ! has-key($type, $key);
+                        my Bool $emitKey = ! has-key($type, $key);
 
 			container($type ~ '-list', $descr, $type, $key, $emitKey);
                     }
