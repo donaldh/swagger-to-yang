@@ -59,16 +59,16 @@ sub MAIN(
             given $verb {
                 when 'get' {
                     if %properties<parameters>[0]<in> ~~ 'path' {
-			my $ref = %properties<responses><200><schema><$ref>
-			          // %properties<responses><200><schema><items><$ref>;
-			my $type = $ref.subst(/^.*\//, '');
+                        my $ref = %properties<responses><200><schema><$ref>
+                                  // %properties<responses><200><schema><items><$ref>;
+                        my $type = $ref.subst(/^.*\//, '');
 
-			my $descr = %properties<description>;
-			my $key = %properties<parameters>[0]<name>;
+                        my $descr = %properties<description>;
+                        my $key = %properties<parameters>[0]<name>;
 
                         my Bool $emitKey = ! has-key($type, $key);
 
-			container($type ~ '-list', $descr, $type, $key, $emitKey);
+                        container($type ~ '-list', $descr, $type, $key, $emitKey);
                     }
                 }
                 default {
@@ -109,7 +109,7 @@ sub MAIN(
         say qq:to/EOF/;
           container {yangify-name($name)} \{
             description
-	      "$descr";
+              "$descr";
             list $y-type \{
               uses $y-type;
               key "$key";
